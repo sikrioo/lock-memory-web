@@ -23,13 +23,23 @@
     overlay: document.getElementById("overlay"),
     overlayTitle: document.getElementById("overlayTitle"),
     overlaySubtitle: document.getElementById("overlaySubtitle"),
+    overlayBestScore: document.getElementById("overlayBestScore"),
+    overlayPeriodState: document.getElementById("overlayPeriodState"),
+    overlayBoardState: document.getElementById("overlayBoardState"),
+    overlayLeaderboardList: document.getElementById("overlayLeaderboardList"),
     start: document.getElementById("start"),
+    rankBtn: document.getElementById("rankBtn"),
+    bottomRankBtn: document.getElementById("bottomRankBtn"),
     restart: document.getElementById("restart"),
     mute: document.getElementById("mute"),
     display: document.getElementById("display"),
     themeBtn: document.getElementById("themeBtn"),
     modeBtn: document.getElementById("modeBtn"),
     periodBtn: document.getElementById("periodBtn"),
+    previewPeriodBtn: document.getElementById("previewPeriodBtn"),
+    closePanelBtn: document.getElementById("closePanelBtn"),
+    panelScrim: document.getElementById("panelScrim"),
+    infoShell: document.getElementById("infoShell"),
     leaderboardList: document.getElementById("leaderboardList"),
     dailyList: document.getElementById("dailyList"),
     dailyDate: document.getElementById("dailyDate"),
@@ -96,6 +106,7 @@
   let wrongFlash = 0;
   let statusTimerLast = null;
   let roundToken = 0;
+  let panelOpen = false;
   let theme = localStorage.getItem(STORAGE_KEYS.theme) || "neon";
   let themeColors = {
     cyan: "#3df7ff",
@@ -111,8 +122,9 @@
   const clientId = getPersistentClientId();
 
   ui.best.textContent = best;
+  ui.overlayBestScore.textContent = best.toLocaleString();
   ui.modeBtn.textContent = playMode;
-  ui.periodBtn.textContent = leaderboardPeriod.toUpperCase();
+  syncPeriodButtons();
 
   function getPersistentClientId() {
     const saved = localStorage.getItem(STORAGE_KEYS.clientId);
@@ -185,6 +197,31 @@
     ui.apiState.textContent = text;
   }
 
+  function setBoardState(text) {
+    ui.overlayBoardState.textContent = text;
+  }
+
+  function syncPeriodButtons() {
+    const label = leaderboardPeriod.toUpperCase();
+    ui.periodBtn.textContent = label;
+    ui.previewPeriodBtn.textContent = label;
+    ui.overlayPeriodState.textContent = label;
+  }
+
+  function setPanelOpen(nextOpen) {
+    panelOpen = nextOpen;
+    document.body.classList.toggle("panel-open", panelOpen);
+    ui.infoShell.setAttribute("aria-hidden", String(!panelOpen));
+    syncRankButtons();
+  }
+
+  function syncRankButtons() {
+    const label = panelOpen ? "CLOSE" : "RANK";
+    ui.bottomRankBtn.textContent = label;
+    ui.bottomRankBtn.classList.toggle("active-toggle", panelOpen);
+    ui.rankBtn.textContent = panelOpen ? "CLOSE RANK" : "VIEW RANK";
+  }
+
   function syncUI() {
     const tier = tierMeta(currentTier);
     ui.stage.textContent = stage;
@@ -201,6 +238,7 @@
   function saveBest() {
     best = Math.max(best, score);
     localStorage.setItem(STORAGE_KEYS.best, String(best));
+    ui.overlayBestScore.textContent = best.toLocaleString();
     syncUI();
   }
 
@@ -250,17 +288,23 @@
     });
   }
 
-  async function refreshSidebar() {
+  async function refreshPanels() {
     const leaderboardPromise = requestJson(`/api/leaderboard?mode=${encodeURIComponent("DOUBT")}&period=${encodeURIComponent(leaderboardPeriod)}`);
     const dailyPromise = requestJson("/api/daily");
     const [leaderboardResult, dailyResult] = await Promise.allSettled([leaderboardPromise, dailyPromise]);
 
     if (leaderboardResult.status === "fulfilled") {
-      renderLeaderboard(leaderboardResult.value.items || []);
-      setApiState(`${leaderboardResult.value.mode} ${leaderboardResult.value.period}`.toUpperCase());
+      const leaderboardItems = leaderboardResult.value.items || [];
+      renderLeaderboard(leaderboardItems);
+      renderOverlayLeaderboard(leaderboardItems);
+      const boardState = `${leaderboardResult.value.mode} ${leaderboardResult.value.period}`.toUpperCase();
+      setApiState(boardState);
+      setBoardState(`TOP 3 | ${boardState}`);
     } else {
       renderLeaderboard([]);
+      renderOverlayLeaderboard([]);
       setApiState("LEADERBOARD OFFLINE");
+      setBoardState("LEADERBOARD OFFLINE");
     }
 
     if (dailyResult.status === "fulfilled") {
@@ -290,6 +334,29 @@
             <strong>${Number(item.score).toLocaleString()}</strong>
             <span>${formatDateShort(item.createdAt)}</span>
           </div>
+        </li>
+      `;
+    }).join("");
+  }
+
+  function renderOverlayLeaderboard(items) {
+    const previewItems = items.slice(0, 3);
+
+    if (!previewItems.length) {
+      ui.overlayLeaderboardList.innerHTML = `<li class="placeholder">No ranked runs yet.</li>`;
+      return;
+    }
+
+    ui.overlayLeaderboardList.innerHTML = previewItems.map((item) => {
+      const name = escapeHtml(item.name || "PLAYER");
+      return `
+        <li class="leaderboard-preview-item">
+          <div class="preview-rank">#${item.rank}</div>
+          <div class="preview-main">
+            <div class="preview-name">${name}</div>
+            <div class="preview-sub">Stage ${item.stage} | ${item.tier}</div>
+          </div>
+          <div class="preview-score">${Number(item.score).toLocaleString()}</div>
         </li>
       `;
     }).join("");
@@ -523,6 +590,23 @@
     ui.overlay.classList.add("hidden");
   }
 
+  function openRankPanel() {
+    setPanelOpen(true);
+    refreshPanels().catch(() => {
+      setApiState("LEADERBOARD OFFLINE");
+      setBoardState("LEADERBOARD OFFLINE");
+    });
+  }
+
+  function cycleLeaderboardPeriod() {
+    leaderboardPeriod = leaderboardPeriod === "daily" ? "weekly" : leaderboardPeriod === "weekly" ? "all" : "daily";
+    syncPeriodButtons();
+    refreshPanels().catch(() => {
+      setApiState("LEADERBOARD OFFLINE");
+      setBoardState("LEADERBOARD OFFLINE");
+    });
+  }
+
   function resetRoundState() {
     playerPattern = [];
     inputTrail = [];
@@ -553,6 +637,7 @@
   async function startGame() {
     if (mode === "loading" || mode === "submitting") return;
     initAudio();
+    setPanelOpen(false);
     hideMenu();
     resetGameState();
     await nextStage();
@@ -711,7 +796,7 @@
         score = Number(response.score || score);
         awarded = Number(response.awardedScore || predictedAward);
         setApiState(`RANK ${response.rank || "-"}`);
-        refreshSidebar().catch(() => {});
+        refreshPanels().catch(() => {});
       } else {
         combo = comboAfter;
         score += predictedAward;
@@ -799,6 +884,7 @@
         `Stage ${stage} failed three times. Pattern: ${currentPattern.join(" -> ")}. Final score ${score}.`,
         "RETRY"
       );
+      openRankPanel();
     }, 850);
   }
 
@@ -1132,8 +1218,33 @@
     });
   });
 
+  ui.rankBtn.addEventListener("click", () => {
+    if (panelOpen) {
+      setPanelOpen(false);
+      return;
+    }
+    openRankPanel();
+  });
+
+  ui.bottomRankBtn.addEventListener("click", () => {
+    if (panelOpen) {
+      setPanelOpen(false);
+      return;
+    }
+    openRankPanel();
+  });
+
+  ui.closePanelBtn.addEventListener("click", () => {
+    setPanelOpen(false);
+  });
+
+  ui.panelScrim.addEventListener("click", () => {
+    setPanelOpen(false);
+  });
+
   ui.restart.addEventListener("click", () => {
     mode = "menu";
+    setPanelOpen(false);
     resetGameState();
     setStatus("READY");
     setApiState("IDLE");
@@ -1162,9 +1273,11 @@
   });
 
   ui.periodBtn.addEventListener("click", () => {
-    leaderboardPeriod = leaderboardPeriod === "daily" ? "weekly" : leaderboardPeriod === "weekly" ? "all" : "daily";
-    ui.periodBtn.textContent = leaderboardPeriod.toUpperCase();
-    refreshSidebar().catch(() => {});
+    cycleLeaderboardPeriod();
+  });
+
+  ui.previewPeriodBtn.addEventListener("click", () => {
+    cycleLeaderboardPeriod();
   });
 
   ui.themeBtn.addEventListener("click", () => {
@@ -1176,11 +1289,19 @@
     ui.mute.textContent = muted ? "SOUND OFF" : "SOUND";
   });
 
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && panelOpen) {
+      setPanelOpen(false);
+    }
+  });
+
   applyTheme(theme);
   resize();
   syncUI();
-  refreshSidebar().catch(() => {
+  syncRankButtons();
+  refreshPanels().catch(() => {
     setApiState("API OFFLINE");
+    setBoardState("LEADERBOARD OFFLINE");
   });
   requestAnimationFrame(loop);
 })();

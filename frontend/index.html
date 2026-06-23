@@ -35,36 +35,45 @@
     <div class="countdown" id="countdown">3</div>
   </div>
 
-  <aside class="side-rail">
-    <section class="card panel">
-      <div class="panel-header">
-        <div>
-          <div class="panel-kicker">API</div>
-          <h2>Rank Board</h2>
-        </div>
-        <button id="periodBtn" class="ghost-btn" type="button">DAILY</button>
-      </div>
-      <div class="panel-meta" id="apiState">CONNECTING</div>
-      <ol class="leaderboard-list" id="leaderboardList">
-        <li class="placeholder">No scores yet.</li>
-      </ol>
-    </section>
+  <div class="info-shell" id="infoShell" aria-hidden="true">
+    <button class="info-scrim" id="panelScrim" type="button" aria-label="Close rank panel"></button>
+    <aside class="info-drawer" id="infoDrawer" aria-labelledby="drawerTitle">
+      <div class="drawer-stack">
+        <section class="card panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-kicker">API</div>
+              <h2 id="drawerTitle">Rank Board</h2>
+            </div>
+            <div class="panel-actions">
+              <button id="periodBtn" class="ghost-btn" type="button">DAILY</button>
+              <button id="closePanelBtn" class="ghost-btn" type="button">CLOSE</button>
+            </div>
+          </div>
+          <div class="panel-meta" id="apiState">CONNECTING</div>
+          <ol class="leaderboard-list" id="leaderboardList">
+            <li class="placeholder">No scores yet.</li>
+          </ol>
+        </section>
 
-    <section class="card panel">
-      <div class="panel-header">
-        <div>
-          <div class="panel-kicker">DAILY</div>
-          <h2>Challenge Route</h2>
-        </div>
-        <div class="panel-meta" id="dailyDate">--</div>
+        <section class="card panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-kicker">DAILY</div>
+              <h2>Challenge Route</h2>
+            </div>
+            <div class="panel-meta" id="dailyDate">--</div>
+          </div>
+          <ol class="daily-list" id="dailyList">
+            <li class="placeholder">Loading daily patterns...</li>
+          </ol>
+        </section>
       </div>
-      <ol class="daily-list" id="dailyList">
-        <li class="placeholder">Loading daily patterns...</li>
-      </ol>
-    </section>
-  </aside>
+    </aside>
+  </div>
 
   <div class="bottom">
+    <button id="bottomRankBtn" type="button">RANK</button>
     <button id="themeBtn" type="button">NEON</button>
     <button id="display" type="button">DOT</button>
     <button id="modeBtn" type="button">DOUBT</button>
@@ -81,7 +90,33 @@
         The backend generates protected Android lock patterns, verifies ranked scores,
         and stores the leaderboard for DOUBT mode.
       </p>
-      <button class="primary" id="start" type="button">START GAME</button>
+      <div class="menu-actions">
+        <button class="primary" id="start" type="button">START GAME</button>
+        <button class="secondary" id="rankBtn" type="button">VIEW RANK</button>
+      </div>
+      <section class="menu-preview card">
+        <div class="panel-header menu-preview-header">
+          <div>
+            <div class="panel-kicker">DOUBT MODE</div>
+            <h2>Top 3 Snapshot</h2>
+          </div>
+          <button id="previewPeriodBtn" class="ghost-btn" type="button">DAILY</button>
+        </div>
+        <div class="preview-stats">
+          <div class="preview-stat">
+            <span class="preview-label">Best</span>
+            <strong id="overlayBestScore">0</strong>
+          </div>
+          <div class="preview-stat">
+            <span class="preview-label">Board</span>
+            <strong id="overlayPeriodState">DAILY</strong>
+          </div>
+        </div>
+        <div class="panel-meta" id="overlayBoardState">CONNECTING</div>
+        <ol class="leaderboard-preview-list" id="overlayLeaderboardList">
+          <li class="placeholder">Loading rank snapshot...</li>
+        </ol>
+      </section>
       <div class="tips">
         <div>Pattern generation now comes from the API instead of local JavaScript.</div>
         <div>DOUBT mode submits ranked score. ZEN mode is local practice only.</div>
