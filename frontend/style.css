@@ -757,6 +757,106 @@ body.theme-flamboyant .primary {
   color: var(--text);
 }
 
+.result-panel {
+  margin-top: 18px;
+  text-align: left;
+}
+
+.result-heading {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.result-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.result-stat-card {
+  padding: 10px 12px;
+  border-radius: calc(var(--radius) * 0.78);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+  border: 1px solid var(--panel-entry-border);
+}
+
+.result-stat-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.name-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.player-name-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: calc(var(--radius) * 0.78);
+  border: 1px solid var(--button-border);
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--text);
+  font: inherit;
+  letter-spacing: 0.04em;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.player-name-input::placeholder {
+  color: var(--muted);
+}
+
+.player-name-input:focus {
+  border-color: var(--button-hover-border);
+  box-shadow: 0 0 0 3px rgba(61, 247, 255, 0.1);
+}
+
+body.theme-simple .player-name-input {
+  background: #ffffff;
+}
+
+.remember-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.remember-name input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--cyan);
+}
+
+.result-save-state {
+  min-height: 18px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.result-save-state.error {
+  color: var(--red);
+}
+
+.result-actions {
+  justify-content: flex-start;
+  margin-top: 14px;
+}
+
 .tips {
   margin-top: 22px;
   display: grid;
@@ -911,6 +1011,18 @@ body.theme-flamboyant .primary {
 
   .menu-preview {
     margin-top: 14px;
+  }
+
+  .result-panel {
+    margin-top: 14px;
+  }
+
+  .result-heading {
+    font-size: 22px;
+  }
+
+  .result-stats-grid {
+    grid-template-columns: 1fr 1fr;
   }
 
   .info-drawer {

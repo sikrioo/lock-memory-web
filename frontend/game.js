@@ -3,6 +3,7 @@
   const STORAGE_KEYS = {
     best: "lock_memory_best_v3",
     clientId: "lock_memory_client_id_v1",
+    preferredName: "lock_memory_player_name_v1",
     theme: "pattern_theme_v1"
   };
 
@@ -23,10 +24,22 @@
     overlay: document.getElementById("overlay"),
     overlayTitle: document.getElementById("overlayTitle"),
     overlaySubtitle: document.getElementById("overlaySubtitle"),
+    menuActions: document.getElementById("menuActions"),
+    introExtras: document.getElementById("introExtras"),
     overlayBestScore: document.getElementById("overlayBestScore"),
     overlayPeriodState: document.getElementById("overlayPeriodState"),
     overlayBoardState: document.getElementById("overlayBoardState"),
     overlayLeaderboardList: document.getElementById("overlayLeaderboardList"),
+    resultPanel: document.getElementById("resultPanel"),
+    resultScore: document.getElementById("resultScore"),
+    resultStage: document.getElementById("resultStage"),
+    resultTier: document.getElementById("resultTier"),
+    resultAnonName: document.getElementById("resultAnonName"),
+    playerNameInput: document.getElementById("playerNameInput"),
+    rememberNameToggle: document.getElementById("rememberNameToggle"),
+    resultSaveState: document.getElementById("resultSaveState"),
+    saveScoreBtn: document.getElementById("saveScoreBtn"),
+    resultRestartBtn: document.getElementById("resultRestartBtn"),
     start: document.getElementById("start"),
     rankBtn: document.getElementById("rankBtn"),
     bottomRankBtn: document.getElementById("bottomRankBtn"),
@@ -107,6 +120,9 @@
   let statusTimerLast = null;
   let roundToken = 0;
   let panelOpen = false;
+  let lastRankedSnapshot = null;
+  let pendingRunResult = null;
+  let savingResult = false;
   let theme = localStorage.getItem(STORAGE_KEYS.theme) || "neon";
   let themeColors = {
     cyan: "#3df7ff",
@@ -132,6 +148,22 @@
     const generated = `anon-${crypto.randomUUID()}`;
     localStorage.setItem(STORAGE_KEYS.clientId, generated);
     return generated;
+  }
+
+  function getPreferredPlayerName() {
+    return (localStorage.getItem(STORAGE_KEYS.preferredName) || "").trim();
+  }
+
+  function setPreferredPlayerName(value) {
+    if (value) {
+      localStorage.setItem(STORAGE_KEYS.preferredName, value);
+      return;
+    }
+    localStorage.removeItem(STORAGE_KEYS.preferredName);
+  }
+
+  function anonymousPlayerName() {
+    return `ANON-${clientId.slice(-4).toUpperCase()}`;
   }
 
   function tierMeta(name) {
@@ -222,6 +254,18 @@
     ui.rankBtn.textContent = panelOpen ? "CLOSE RANK" : "VIEW RANK";
   }
 
+  function setOverlayLayout(layout) {
+    const isResult = layout === "result";
+    ui.menuActions.classList.toggle("hidden", isResult);
+    ui.introExtras.classList.toggle("hidden", isResult);
+    ui.resultPanel.classList.toggle("hidden", !isResult);
+  }
+
+  function setResultSaveState(text, isError = false) {
+    ui.resultSaveState.textContent = text;
+    ui.resultSaveState.classList.toggle("error", isError);
+  }
+
   function syncUI() {
     const tier = tierMeta(currentTier);
     ui.stage.textContent = stage;
@@ -283,6 +327,13 @@
 
   async function submitStageScore(payload) {
     return requestJson("/api/score/submit", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async function finalizeRunScore(payload) {
+    return requestJson("/api/run/finalize", {
       method: "POST",
       body: JSON.stringify(payload)
     });
@@ -580,14 +631,89 @@
   }
 
   function showMenu(title, subtitle, buttonText) {
+    pendingRunResult = null;
+    savingResult = false;
     ui.overlayTitle.innerHTML = title;
     ui.overlaySubtitle.textContent = subtitle;
     ui.start.textContent = buttonText;
+    setOverlayLayout("menu");
     ui.overlay.classList.remove("hidden");
   }
 
   function hideMenu() {
     ui.overlay.classList.add("hidden");
+  }
+
+  function showResultMenu(payload) {
+    pendingRunResult = payload;
+    savingResult = false;
+
+    const savedName = getPreferredPlayerName();
+    const anonName = anonymousPlayerName();
+
+    ui.overlayTitle.innerHTML = "RUN<br />OVER";
+    ui.overlaySubtitle.textContent = payload.subtitle;
+    ui.resultScore.textContent = Number(payload.score).toLocaleString();
+    ui.resultStage.textContent = String(payload.stage);
+    ui.resultTier.textContent = payload.tier;
+    ui.resultAnonName.textContent = anonName;
+    ui.playerNameInput.value = savedName;
+    ui.playerNameInput.placeholder = anonName;
+    ui.rememberNameToggle.checked = Boolean(savedName);
+    ui.saveScoreBtn.disabled = false;
+    ui.resultRestartBtn.disabled = false;
+    setResultSaveState(`Leave it blank to save as ${anonName}. Callsign: 2-12 letters, numbers, spaces, _ or -.`);
+    setOverlayLayout("result");
+    ui.overlay.classList.remove("hidden");
+
+    window.setTimeout(() => {
+      ui.playerNameInput.focus();
+      ui.playerNameInput.select();
+    }, 24);
+  }
+
+  async function saveRunResult() {
+    if (!pendingRunResult || savingResult) return;
+
+    savingResult = true;
+    ui.saveScoreBtn.disabled = true;
+    ui.resultRestartBtn.disabled = true;
+    setResultSaveState("Saving your run...");
+
+    const playerName = ui.playerNameInput.value.trim().replace(/\s+/g, " ");
+
+    try {
+      const response = await finalizeRunScore({
+        runId: pendingRunResult.runId,
+        clientId,
+        playerName
+      });
+
+      if (ui.rememberNameToggle.checked && playerName) {
+        setPreferredPlayerName(playerName);
+      } else if (!ui.rememberNameToggle.checked || !playerName) {
+        setPreferredPlayerName("");
+      }
+
+      lastRankedSnapshot = null;
+      pendingRunResult = null;
+      setStatus(`RANK #${response.rank}`);
+      refreshPanels().catch(() => {});
+      setPanelOpen(true);
+      showMenu(
+        "ENTRY<br />SAVED",
+        `Saved as ${response.name}. Final score ${Number(response.score).toLocaleString()} | Rank #${response.rank}.`,
+        "PLAY AGAIN"
+      );
+    } catch (error) {
+      setResultSaveState(error.message, true);
+      ui.saveScoreBtn.disabled = false;
+      ui.resultRestartBtn.disabled = false;
+      savingResult = false;
+      return;
+    }
+
+    savingResult = false;
   }
 
   function openRankPanel() {
@@ -624,6 +750,9 @@
   function resetGameState() {
     roundToken += 1;
     currentRunId = null;
+    lastRankedSnapshot = null;
+    pendingRunResult = null;
+    savingResult = false;
     stage = 1;
     score = 0;
     combo = 0;
@@ -795,8 +924,13 @@
         combo = Number(response.combo || comboAfter);
         score = Number(response.score || score);
         awarded = Number(response.awardedScore || predictedAward);
-        setApiState(`RANK ${response.rank || "-"}`);
-        refreshPanels().catch(() => {});
+        lastRankedSnapshot = {
+          runId: currentRunId,
+          score,
+          stage,
+          tier: currentTier
+        };
+        setApiState(`RUN VERIFIED | PROJECTED #${response.rank || "-"}`);
       } else {
         combo = comboAfter;
         score += predictedAward;
@@ -879,12 +1013,23 @@
 
     setTimeout(() => {
       mode = "menu";
+      if (playMode === "DOUBT" && lastRankedSnapshot && Number(lastRankedSnapshot.score) > 0) {
+        showResultMenu({
+          runId: lastRankedSnapshot.runId,
+          score: lastRankedSnapshot.score,
+          stage: lastRankedSnapshot.stage,
+          tier: lastRankedSnapshot.tier,
+          subtitle: `You failed on stage ${stage}. Save your best cleared run to the rank board.`
+        });
+        openRankPanel();
+        return;
+      }
+
       showMenu(
         "SYSTEM<br />LOCKED",
         `Stage ${stage} failed three times. Pattern: ${currentPattern.join(" -> ")}. Final score ${score}.`,
         "RETRY"
       );
-      openRankPanel();
     }, 850);
   }
 
@@ -1232,6 +1377,28 @@
       return;
     }
     openRankPanel();
+  });
+
+  ui.saveScoreBtn.addEventListener("click", () => {
+    saveRunResult().catch((error) => {
+      setResultSaveState(error.message, true);
+    });
+  });
+
+  ui.resultRestartBtn.addEventListener("click", () => {
+    if (savingResult) return;
+    startGame().catch((error) => {
+      mode = "menu";
+      showMenu("START<br />FAILED", error.message, "TRY AGAIN");
+    });
+  });
+
+  ui.playerNameInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    saveRunResult().catch((error) => {
+      setResultSaveState(error.message, true);
+    });
   });
 
   ui.closePanelBtn.addEventListener("click", () => {

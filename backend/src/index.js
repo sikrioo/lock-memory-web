@@ -209,25 +209,19 @@ app.post("/api/score/submit", route((req, res) => {
     throw httpError(422, "Score does not match the server-calculated total.");
   }
 
-  const createdAt = new Date().toISOString();
   submitScoreTransaction({
     sessionId,
     awardedScore,
     scoreAfter,
-    comboAfter,
-    clientId,
-    mode: session.mode,
-    stage: Number(session.stage),
-    tier: session.tier,
-    elapsedMs,
-    createdAt
+    comboAfter
   });
 
   const rankRow = db.prepare(`
     SELECT COUNT(*) + 1 AS rank
-    FROM scores
-    WHERE mode = ? AND score > ?
-  `).get(session.mode, scoreAfter);
+    FROM leaderboard_entries
+    WHERE mode = ?
+      AND (score > ? OR (score = ? AND stage > ?))
+  `).get(session.mode, scoreAfter, scoreAfter, Number(session.stage));
 
   res.status(200).json({
     accepted: true,
@@ -235,6 +229,108 @@ app.post("/api/score/submit", route((req, res) => {
     score: scoreAfter,
     awardedScore,
     combo: comboAfter
+  });
+}));
+
+app.post("/api/run/finalize", route((req, res) => {
+  const body = req.body || {};
+  const runId = requireText(body.runId, "runId");
+  const clientId = normalizeClientId(body.clientId);
+  const requestedPlayerName = normalizeOptionalPlayerName(body.playerName);
+
+  const existingEntry = db.prepare(`
+    SELECT *
+    FROM leaderboard_entries
+    WHERE run_id = ?
+    LIMIT 1
+  `).get(runId);
+
+  if (existingEntry) {
+    if (existingEntry.client_id !== clientId) {
+      throw httpError(403, "clientId does not match the finalized run.");
+    }
+
+    if (requestedPlayerName && requestedPlayerName !== existingEntry.player_name) {
+      db.prepare(`
+        UPDATE leaderboard_entries
+        SET player_name = ?, name_source = 'CUSTOM'
+        WHERE run_id = ?
+      `).run(requestedPlayerName, runId);
+
+      existingEntry.player_name = requestedPlayerName;
+      existingEntry.name_source = "CUSTOM";
+    }
+
+    const rankRow = db.prepare(`
+      SELECT COUNT(*) + 1 AS rank
+      FROM leaderboard_entries
+      WHERE mode = ?
+        AND (score > ? OR (score = ? AND stage > ?))
+    `).get(existingEntry.mode, Number(existingEntry.score), Number(existingEntry.score), Number(existingEntry.stage));
+
+    res.status(200).json({
+      saved: true,
+      rank: Number(rankRow?.rank || 1),
+      name: existingEntry.player_name,
+      score: Number(existingEntry.score),
+      stage: Number(existingEntry.stage),
+      tier: existingEntry.tier
+    });
+    return;
+  }
+
+  const latestSession = db.prepare(`
+    SELECT id, stage, tier, combo_after, score_after
+    FROM sessions
+    WHERE run_id = ? AND client_id = ? AND mode = 'DOUBT' AND score_submitted = 1
+    ORDER BY stage DESC
+    LIMIT 1
+  `).get(runId, clientId);
+
+  if (!latestSession) {
+    throw httpError(422, "No ranked score is available to save for this run.");
+  }
+
+  const createdAt = new Date().toISOString();
+  const playerName = requestedPlayerName || anonymousPlayerNameForClient(clientId);
+  const nameSource = requestedPlayerName ? "CUSTOM" : "ANON";
+
+  db.prepare(`
+    INSERT INTO leaderboard_entries (
+      run_id, session_id, client_id, player_name, name_source, mode, score, stage, tier, combo, created_at
+    )
+    VALUES (?, ?, ?, ?, ?, 'DOUBT', ?, ?, ?, ?, ?)
+  `).run(
+    runId,
+    latestSession.id,
+    clientId,
+    playerName,
+    nameSource,
+    Number(latestSession.score_after || 0),
+    Number(latestSession.stage),
+    latestSession.tier,
+    Number(latestSession.combo_after || 0),
+    createdAt
+  );
+
+  const rankRow = db.prepare(`
+    SELECT COUNT(*) + 1 AS rank
+    FROM leaderboard_entries
+    WHERE mode = 'DOUBT'
+      AND (score > ? OR (score = ? AND stage > ?))
+  `).get(
+    Number(latestSession.score_after || 0),
+    Number(latestSession.score_after || 0),
+    Number(latestSession.stage)
+  );
+
+  res.status(200).json({
+    saved: true,
+    rank: Number(rankRow?.rank || 1),
+    name: playerName,
+    score: Number(latestSession.score_after || 0),
+    stage: Number(latestSession.stage),
+    tier: latestSession.tier
   });
 }));
 
@@ -253,7 +349,7 @@ app.get("/api/leaderboard", route((req, res) => {
 
   const query = `
     SELECT player_name, score, stage, tier, created_at
-    FROM scores
+    FROM leaderboard_entries
     ${where}
     ORDER BY score DESC, stage DESC, created_at ASC
     LIMIT ${limit}
@@ -331,32 +427,12 @@ const updateSessionStatement = db.prepare(`
   WHERE id = ?
 `);
 
-const insertScoreStatement = db.prepare(`
-  INSERT INTO scores (
-    session_id, client_id, player_name, mode, score, stage, tier, combo, elapsed_ms, created_at
-  )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
-
 const submitScoreTransaction = db.transaction((payload) => {
   updateSessionStatement.run(
     payload.awardedScore,
     payload.scoreAfter,
     payload.comboAfter,
     payload.sessionId
-  );
-
-  insertScoreStatement.run(
-    payload.sessionId,
-    payload.clientId,
-    playerNameForClient(payload.clientId),
-    payload.mode,
-    payload.scoreAfter,
-    payload.stage,
-    payload.tier,
-    payload.comboAfter,
-    payload.elapsedMs,
-    payload.createdAt
   );
 });
 
@@ -438,8 +514,24 @@ function patternsEqual(left, right) {
   return true;
 }
 
-function playerNameForClient(clientId) {
-  return `PLAYER-${clientId.slice(-4).toUpperCase()}`;
+function normalizeOptionalPlayerName(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (!normalized) return null;
+  if (normalized.length < 2 || normalized.length > 12) {
+    throw httpError(400, "playerName must be between 2 and 12 characters.");
+  }
+  if (!/^[A-Za-z0-9 _-]+$/.test(normalized)) {
+    throw httpError(400, "playerName may only contain letters, numbers, spaces, underscores, or hyphens.");
+  }
+  if (normalized.toUpperCase().startsWith("ANON-")) {
+    throw httpError(400, "playerName cannot start with ANON-.");
+  }
+  return normalized;
+}
+
+function anonymousPlayerNameForClient(clientId) {
+  return `ANON-${clientId.slice(-4).toUpperCase()}`;
 }
 
 function requireText(value, fieldName) {

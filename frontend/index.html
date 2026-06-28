@@ -87,42 +87,79 @@
       <h1 id="overlayTitle">LOCK<br />MEMORY</h1>
       <p class="subtitle" id="overlaySubtitle">
         The client renders the neon board and handles input.
-        The backend generates protected Android lock patterns, verifies ranked scores,
-        and stores the leaderboard for DOUBT mode.
+        The backend generates protected Android lock patterns, verifies each ranked stage,
+        and saves leaderboard entries when a DOUBT run ends.
       </p>
-      <div class="menu-actions">
+      <div class="menu-actions" id="menuActions">
         <button class="primary" id="start" type="button">START GAME</button>
         <button class="secondary" id="rankBtn" type="button">VIEW RANK</button>
       </div>
-      <section class="menu-preview card">
-        <div class="panel-header menu-preview-header">
-          <div>
-            <div class="panel-kicker">DOUBT MODE</div>
-            <h2>Top 3 Snapshot</h2>
+      <div id="introExtras">
+        <section class="menu-preview card">
+          <div class="panel-header menu-preview-header">
+            <div>
+              <div class="panel-kicker">DOUBT MODE</div>
+              <h2>Top 3 Snapshot</h2>
+            </div>
+            <button id="previewPeriodBtn" class="ghost-btn" type="button">DAILY</button>
           </div>
-          <button id="previewPeriodBtn" class="ghost-btn" type="button">DAILY</button>
+          <div class="preview-stats">
+            <div class="preview-stat">
+              <span class="preview-label">Best</span>
+              <strong id="overlayBestScore">0</strong>
+            </div>
+            <div class="preview-stat">
+              <span class="preview-label">Board</span>
+              <strong id="overlayPeriodState">DAILY</strong>
+            </div>
+          </div>
+          <div class="panel-meta" id="overlayBoardState">CONNECTING</div>
+          <ol class="leaderboard-preview-list" id="overlayLeaderboardList">
+            <li class="placeholder">Loading rank snapshot...</li>
+          </ol>
+        </section>
+        <div class="tips" id="menuTips">
+          <div>Pattern generation now comes from the API instead of local JavaScript.</div>
+          <div>DOUBT mode verifies each clear, then lets you save the run on game over. ZEN mode is local practice only.</div>
+          <div>Dragging across a blocked line auto-inserts the required middle node.</div>
+          <div>Theme switch cycles through NEON, SIMPLE, and WILD.</div>
         </div>
-        <div class="preview-stats">
-          <div class="preview-stat">
-            <span class="preview-label">Best</span>
-            <strong id="overlayBestScore">0</strong>
-          </div>
-          <div class="preview-stat">
-            <span class="preview-label">Board</span>
-            <strong id="overlayPeriodState">DAILY</strong>
-          </div>
-        </div>
-        <div class="panel-meta" id="overlayBoardState">CONNECTING</div>
-        <ol class="leaderboard-preview-list" id="overlayLeaderboardList">
-          <li class="placeholder">Loading rank snapshot...</li>
-        </ol>
-      </section>
-      <div class="tips">
-        <div>Pattern generation now comes from the API instead of local JavaScript.</div>
-        <div>DOUBT mode submits ranked score. ZEN mode is local practice only.</div>
-        <div>Dragging across a blocked line auto-inserts the required middle node.</div>
-        <div>Theme switch cycles through NEON, SIMPLE, and WILD.</div>
       </div>
+      <section class="result-panel hidden" id="resultPanel">
+        <div class="panel-kicker">Ranked Run</div>
+        <h2 class="result-heading">Save This Run</h2>
+        <div class="result-stats-grid">
+          <div class="result-stat-card">
+            <span class="preview-label">Score</span>
+            <strong id="resultScore">0</strong>
+          </div>
+          <div class="result-stat-card">
+            <span class="preview-label">Stage</span>
+            <strong id="resultStage">1</strong>
+          </div>
+          <div class="result-stat-card">
+            <span class="preview-label">Tier</span>
+            <strong id="resultTier">BRONZE</strong>
+          </div>
+          <div class="result-stat-card">
+            <span class="preview-label">Save As</span>
+            <strong id="resultAnonName">ANON-0000</strong>
+          </div>
+        </div>
+        <label class="name-field" for="playerNameInput">
+          <span class="preview-label">Callsign</span>
+          <input id="playerNameInput" class="player-name-input" type="text" maxlength="12" autocomplete="nickname" spellcheck="false" />
+        </label>
+        <label class="remember-name">
+          <input id="rememberNameToggle" type="checkbox" />
+          <span>Remember this name on this device</span>
+        </label>
+        <div class="result-save-state" id="resultSaveState">Leave it blank to save as your anonymous callsign.</div>
+        <div class="menu-actions result-actions">
+          <button class="primary" id="saveScoreBtn" type="button">SAVE SCORE</button>
+          <button class="secondary" id="resultRestartBtn" type="button">PLAY AGAIN</button>
+        </div>
+      </section>
     </div>
   </div>
 
