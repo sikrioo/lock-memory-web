@@ -732,17 +732,12 @@ body.theme-flamboyant .primary {
   text-transform: uppercase;
 }
 
-.start-note,
 .result-player-note {
   min-height: 18px;
   margin-top: 12px;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
-}
-
-.start-note.error {
-  color: var(--red);
 }
 
 .result-panel {

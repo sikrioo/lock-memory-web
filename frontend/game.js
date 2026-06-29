@@ -25,7 +25,6 @@
     overlaySubtitle: document.getElementById("overlaySubtitle"),
     startPanel: document.getElementById("startPanel"),
     startNameInput: document.getElementById("startNameInput"),
-    startNameState: document.getElementById("startNameState"),
     menuActions: document.getElementById("menuActions"),
     resultPanel: document.getElementById("resultPanel"),
     resultScore: document.getElementById("resultScore"),
@@ -234,26 +233,8 @@
     ui.periodBtn.textContent = leaderboardPeriod.toUpperCase();
   }
 
-  function setStartNameState(text, isError = false) {
-    ui.startNameState.textContent = text;
-    ui.startNameState.classList.toggle("error", isError);
-  }
-
-  function refreshStartNameState() {
-    const anonName = anonymousPlayerName();
-    const rawValue = ui.startNameInput.value.trim();
-
-    if (!rawValue) {
-      setStartNameState(`Blank = ${anonName}`);
-      return;
-    }
-
-    try {
-      const normalized = normalizePlayerNameInput(ui.startNameInput.value);
-      setStartNameState(`Start as ${normalized}`, false);
-    } catch (error) {
-      setStartNameState(error.message, true);
-    }
+  function clearStartNameValidation() {
+    ui.startNameInput.setCustomValidity("");
   }
 
   function setPanelOpen(nextOpen) {
@@ -625,7 +606,7 @@
     ui.overlaySubtitle.textContent = subtitle;
     ui.start.textContent = buttonText;
     ui.startNameInput.placeholder = anonymousPlayerName();
-    refreshStartNameState();
+    clearStartNameValidation();
     setOverlayLayout("menu");
     ui.overlay.classList.remove("hidden");
   }
@@ -702,7 +683,7 @@
       pendingRunResult = null;
       activePlayerName = "";
       ui.startNameInput.value = playerName || "";
-      refreshStartNameState();
+      clearStartNameValidation();
       setStatus(`RANK #${response.rank}`);
       refreshPanels().catch(() => {});
       setPanelOpen(true);
@@ -775,13 +756,14 @@
     try {
       chosenName = normalizePlayerNameInput(ui.startNameInput.value);
     } catch (error) {
-      setStartNameState(error.message, true);
+      ui.startNameInput.setCustomValidity(error.message);
+      ui.startNameInput.reportValidity();
       ui.startNameInput.focus();
       return;
     }
 
+    clearStartNameValidation();
     ui.startNameInput.value = chosenName;
-    refreshStartNameState();
     initAudio();
     setPanelOpen(false);
     hideMenu();
@@ -1413,7 +1395,7 @@
   });
 
   ui.startNameInput.addEventListener("input", () => {
-    refreshStartNameState();
+    clearStartNameValidation();
   });
 
   ui.startNameInput.addEventListener("keydown", (event) => {
@@ -1495,7 +1477,7 @@
   syncUI();
   syncRankButtons();
   ui.startNameInput.placeholder = anonymousPlayerName();
-  refreshStartNameState();
+  clearStartNameValidation();
   refreshPanels().catch(() => {
     setApiState("API OFFLINE");
   });
