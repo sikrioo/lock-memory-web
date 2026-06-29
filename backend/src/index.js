@@ -4,7 +4,6 @@ import express from "express";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { db, dbFile } from "./db.js";
 import {
-  buildDailyChallenge,
   buildRecentPatternState,
   buildStageSession,
   computeAwardedScore,
@@ -372,37 +371,6 @@ app.get("/api/leaderboard", route((req, res) => {
   });
 }));
 
-app.get("/api/daily", route((req, res) => {
-  const requestedDate = normalizeDateString(req.query.date) || currentUtcDate();
-  const existing = db.prepare(`
-    SELECT challenge_date, patterns_json
-    FROM daily_challenges
-    WHERE challenge_date = ?
-    LIMIT 1
-  `).get(requestedDate);
-
-  if (existing) {
-    res.status(200).json({
-      date: existing.challenge_date,
-      patterns: JSON.parse(existing.patterns_json)
-    });
-    return;
-  }
-
-  const challenge = buildDailyChallenge(requestedDate);
-
-  db.prepare(`
-    INSERT INTO daily_challenges (challenge_date, patterns_json, created_at)
-    VALUES (?, ?, ?)
-  `).run(
-    requestedDate,
-    JSON.stringify(challenge.patterns),
-    new Date().toISOString()
-  );
-
-  res.status(200).json(challenge);
-}));
-
 app.use(express.static(frontendDir));
 app.get("/", (req, res) => {
   res.sendFile(path.resolve(frontendDir, "index.html"));
@@ -472,16 +440,6 @@ function periodStart(period) {
     start.setUTCDate(start.getUTCDate() - 6);
   }
   return start.toISOString();
-}
-
-function currentUtcDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function normalizeDateString(value) {
-  if (!value) return null;
-  const normalized = String(value);
-  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
 }
 
 function normalizeClientId(value) {

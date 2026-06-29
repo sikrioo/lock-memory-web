@@ -50,8 +50,6 @@
     panelScrim: document.getElementById("panelScrim"),
     infoShell: document.getElementById("infoShell"),
     leaderboardList: document.getElementById("leaderboardList"),
-    dailyList: document.getElementById("dailyList"),
-    dailyDate: document.getElementById("dailyDate"),
     apiState: document.getElementById("apiState")
   };
 
@@ -218,13 +216,13 @@
     const normalized = value.trim().replace(/\s+/g, " ");
     if (!normalized) return "";
     if (normalized.length < 2 || normalized.length > 12) {
-      throw new Error("Callsign must be between 2 and 12 characters.");
+      throw new Error("Name must be between 2 and 12 characters.");
     }
     if (!/^[A-Za-z0-9 _-]+$/.test(normalized)) {
-      throw new Error("Callsign may only use letters, numbers, spaces, underscores, or hyphens.");
+      throw new Error("Name may only use letters, numbers, spaces, underscores, or hyphens.");
     }
     if (normalized.toUpperCase().startsWith("ANON-")) {
-      throw new Error("Callsign cannot start with ANON-.");
+      throw new Error("Name cannot start with ANON-.");
     }
     return normalized;
   }
@@ -336,9 +334,9 @@
   }
 
   async function refreshPanels() {
-    const leaderboardPromise = requestJson(`/api/leaderboard?mode=${encodeURIComponent("DOUBT")}&period=${encodeURIComponent(leaderboardPeriod)}`);
-    const dailyPromise = requestJson("/api/daily");
-    const [leaderboardResult, dailyResult] = await Promise.allSettled([leaderboardPromise, dailyPromise]);
+    const leaderboardResult = await requestJson(
+      `/api/leaderboard?mode=${encodeURIComponent("DOUBT")}&period=${encodeURIComponent(leaderboardPeriod)}`
+    ).then((value) => ({ status: "fulfilled", value })).catch((reason) => ({ status: "rejected", reason }));
 
     if (leaderboardResult.status === "fulfilled") {
       const leaderboardItems = leaderboardResult.value.items || [];
@@ -348,12 +346,6 @@
     } else {
       renderLeaderboard([]);
       setApiState("LEADERBOARD OFFLINE");
-    }
-
-    if (dailyResult.status === "fulfilled") {
-      renderDaily(dailyResult.value.date, dailyResult.value.patterns || []);
-    } else {
-      renderDaily("--", []);
     }
   }
 
@@ -376,28 +368,6 @@
           <div class="entry-score">
             <strong>${Number(item.score).toLocaleString()}</strong>
             <span>${formatDateShort(item.createdAt)}</span>
-          </div>
-        </li>
-      `;
-    }).join("");
-  }
-
-  function renderDaily(date, patterns) {
-    ui.dailyDate.textContent = date;
-
-    if (!patterns.length) {
-      ui.dailyList.innerHTML = `<li class="placeholder">Daily challenge unavailable.</li>`;
-      return;
-    }
-
-    ui.dailyList.innerHTML = patterns.map((item) => {
-      const patternText = item.pattern.join(" -> ");
-      return `
-        <li class="daily-item">
-          <div class="daily-stage">${item.stage}</div>
-          <div class="daily-main">
-            <div class="daily-tier">${item.tier} | ${item.difficulty}/100</div>
-            <div class="daily-pattern">${patternText}</div>
           </div>
         </li>
       `;
@@ -631,7 +601,7 @@
     ui.resultPlayerName.textContent = runPlayerName || anonName;
     ui.resultPlayerNote.textContent = runPlayerName
       ? `Saving as ${runPlayerName}.`
-      : `Add a callsign or save as ${anonName}.`;
+      : `Add a name or save as ${anonName}.`;
     ui.resultNameField.classList.toggle("hidden", !needsNameInput);
     ui.resultNameInput.value = "";
     ui.resultNameInput.placeholder = anonName;

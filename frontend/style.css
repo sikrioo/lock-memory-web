@@ -452,8 +452,7 @@ body.theme-flamboyant .ghost-btn:hover {
   font-size: 10px;
 }
 
-.leaderboard-list,
-.daily-list {
+.leaderboard-list {
   list-style: none;
   padding: 0;
   margin: 12px 0 0;
@@ -461,8 +460,7 @@ body.theme-flamboyant .ghost-btn:hover {
   gap: 8px;
 }
 
-.leaderboard-item,
-.daily-item {
+.leaderboard-item {
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 10px;
@@ -473,12 +471,7 @@ body.theme-flamboyant .ghost-btn:hover {
   border: 1px solid var(--panel-entry-border);
 }
 
-.daily-item {
-  grid-template-columns: auto 1fr;
-}
-
-.rank-pill,
-.daily-stage {
+.rank-pill {
   width: 36px;
   height: 36px;
   display: grid;
@@ -489,31 +482,26 @@ body.theme-flamboyant .ghost-btn:hover {
   font-weight: 900;
 }
 
-body.theme-simple .rank-pill,
-body.theme-simple .daily-stage {
+body.theme-simple .rank-pill {
   background: #111111;
   color: #ffffff;
 }
 
-body.theme-flamboyant .rank-pill,
-body.theme-flamboyant .daily-stage {
+body.theme-flamboyant .rank-pill {
   background: rgba(255, 0, 200, 0.2);
 }
 
-.entry-main,
-.daily-main {
+.entry-main {
   min-width: 0;
 }
 
-.entry-name,
-.daily-tier {
+.entry-name {
   font-size: 13px;
   font-weight: 900;
   color: var(--text);
 }
 
-.entry-sub,
-.daily-pattern {
+.entry-sub {
   margin-top: 3px;
   color: var(--muted);
   font-size: 11px;
