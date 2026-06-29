@@ -83,47 +83,22 @@
 
   <div class="overlay" id="overlay">
     <div class="menu">
-      <div class="eyebrow">Frontend + SQLite API</div>
+      <div class="eyebrow">Pattern Memory</div>
       <h1 id="overlayTitle">LOCK<br />MEMORY</h1>
       <p class="subtitle" id="overlaySubtitle">
-        The client renders the neon board and handles input.
-        The backend generates protected Android lock patterns, verifies each ranked stage,
-        and saves leaderboard entries when a DOUBT run ends.
+        Trace the remembered lock pattern.
+        Enter a callsign now, or leave it blank and decide when the run ends.
       </p>
+      <div class="start-panel" id="startPanel">
+        <label class="name-field" for="startNameInput">
+          <span class="preview-label">Callsign · Optional</span>
+          <input id="startNameInput" class="player-name-input" type="text" maxlength="12" autocomplete="nickname" spellcheck="false" />
+        </label>
+        <div class="start-note" id="startNameState">Leave it blank to start anonymously.</div>
+      </div>
       <div class="menu-actions" id="menuActions">
         <button class="primary" id="start" type="button">START GAME</button>
         <button class="secondary" id="rankBtn" type="button">VIEW RANK</button>
-      </div>
-      <div id="introExtras">
-        <section class="menu-preview card">
-          <div class="panel-header menu-preview-header">
-            <div>
-              <div class="panel-kicker">DOUBT MODE</div>
-              <h2>Top 3 Snapshot</h2>
-            </div>
-            <button id="previewPeriodBtn" class="ghost-btn" type="button">DAILY</button>
-          </div>
-          <div class="preview-stats">
-            <div class="preview-stat">
-              <span class="preview-label">Best</span>
-              <strong id="overlayBestScore">0</strong>
-            </div>
-            <div class="preview-stat">
-              <span class="preview-label">Board</span>
-              <strong id="overlayPeriodState">DAILY</strong>
-            </div>
-          </div>
-          <div class="panel-meta" id="overlayBoardState">CONNECTING</div>
-          <ol class="leaderboard-preview-list" id="overlayLeaderboardList">
-            <li class="placeholder">Loading rank snapshot...</li>
-          </ol>
-        </section>
-        <div class="tips" id="menuTips">
-          <div>Pattern generation now comes from the API instead of local JavaScript.</div>
-          <div>DOUBT mode verifies each clear, then lets you save the run on game over. ZEN mode is local practice only.</div>
-          <div>Dragging across a blocked line auto-inserts the required middle node.</div>
-          <div>Theme switch cycles through NEON, SIMPLE, and WILD.</div>
-        </div>
       </div>
       <section class="result-panel hidden" id="resultPanel">
         <div class="panel-kicker">Ranked Run</div>
@@ -142,17 +117,14 @@
             <strong id="resultTier">BRONZE</strong>
           </div>
           <div class="result-stat-card">
-            <span class="preview-label">Save As</span>
-            <strong id="resultAnonName">ANON-0000</strong>
+            <span class="preview-label">Player</span>
+            <strong id="resultPlayerName">ANON-0000</strong>
           </div>
         </div>
-        <label class="name-field" for="playerNameInput">
+        <div class="result-player-note" id="resultPlayerNote">You can still add a callsign before saving.</div>
+        <label class="name-field hidden" id="resultNameField" for="resultNameInput">
           <span class="preview-label">Callsign</span>
-          <input id="playerNameInput" class="player-name-input" type="text" maxlength="12" autocomplete="nickname" spellcheck="false" />
-        </label>
-        <label class="remember-name">
-          <input id="rememberNameToggle" type="checkbox" />
-          <span>Remember this name on this device</span>
+          <input id="resultNameInput" class="player-name-input" type="text" maxlength="12" autocomplete="nickname" spellcheck="false" />
         </label>
         <div class="result-save-state" id="resultSaveState">Leave it blank to save as your anonymous callsign.</div>
         <div class="menu-actions result-actions">

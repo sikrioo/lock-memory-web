@@ -3,7 +3,6 @@
   const STORAGE_KEYS = {
     best: "lock_memory_best_v3",
     clientId: "lock_memory_client_id_v1",
-    preferredName: "lock_memory_player_name_v1",
     theme: "pattern_theme_v1"
   };
 
@@ -24,19 +23,18 @@
     overlay: document.getElementById("overlay"),
     overlayTitle: document.getElementById("overlayTitle"),
     overlaySubtitle: document.getElementById("overlaySubtitle"),
+    startPanel: document.getElementById("startPanel"),
+    startNameInput: document.getElementById("startNameInput"),
+    startNameState: document.getElementById("startNameState"),
     menuActions: document.getElementById("menuActions"),
-    introExtras: document.getElementById("introExtras"),
-    overlayBestScore: document.getElementById("overlayBestScore"),
-    overlayPeriodState: document.getElementById("overlayPeriodState"),
-    overlayBoardState: document.getElementById("overlayBoardState"),
-    overlayLeaderboardList: document.getElementById("overlayLeaderboardList"),
     resultPanel: document.getElementById("resultPanel"),
     resultScore: document.getElementById("resultScore"),
     resultStage: document.getElementById("resultStage"),
     resultTier: document.getElementById("resultTier"),
-    resultAnonName: document.getElementById("resultAnonName"),
-    playerNameInput: document.getElementById("playerNameInput"),
-    rememberNameToggle: document.getElementById("rememberNameToggle"),
+    resultPlayerName: document.getElementById("resultPlayerName"),
+    resultPlayerNote: document.getElementById("resultPlayerNote"),
+    resultNameField: document.getElementById("resultNameField"),
+    resultNameInput: document.getElementById("resultNameInput"),
     resultSaveState: document.getElementById("resultSaveState"),
     saveScoreBtn: document.getElementById("saveScoreBtn"),
     resultRestartBtn: document.getElementById("resultRestartBtn"),
@@ -49,7 +47,6 @@
     themeBtn: document.getElementById("themeBtn"),
     modeBtn: document.getElementById("modeBtn"),
     periodBtn: document.getElementById("periodBtn"),
-    previewPeriodBtn: document.getElementById("previewPeriodBtn"),
     closePanelBtn: document.getElementById("closePanelBtn"),
     panelScrim: document.getElementById("panelScrim"),
     infoShell: document.getElementById("infoShell"),
@@ -123,6 +120,7 @@
   let lastRankedSnapshot = null;
   let pendingRunResult = null;
   let savingResult = false;
+  let activePlayerName = "";
   let theme = localStorage.getItem(STORAGE_KEYS.theme) || "neon";
   let themeColors = {
     cyan: "#3df7ff",
@@ -138,7 +136,6 @@
   const clientId = getPersistentClientId();
 
   ui.best.textContent = best;
-  ui.overlayBestScore.textContent = best.toLocaleString();
   ui.modeBtn.textContent = playMode;
   syncPeriodButtons();
 
@@ -148,18 +145,6 @@
     const generated = `anon-${crypto.randomUUID()}`;
     localStorage.setItem(STORAGE_KEYS.clientId, generated);
     return generated;
-  }
-
-  function getPreferredPlayerName() {
-    return (localStorage.getItem(STORAGE_KEYS.preferredName) || "").trim();
-  }
-
-  function setPreferredPlayerName(value) {
-    if (value) {
-      localStorage.setItem(STORAGE_KEYS.preferredName, value);
-      return;
-    }
-    localStorage.removeItem(STORAGE_KEYS.preferredName);
   }
 
   function anonymousPlayerName() {
@@ -229,15 +214,46 @@
     ui.apiState.textContent = text;
   }
 
-  function setBoardState(text) {
-    ui.overlayBoardState.textContent = text;
+  function normalizePlayerNameInput(value) {
+    if (typeof value !== "string") return "";
+    const normalized = value.trim().replace(/\s+/g, " ");
+    if (!normalized) return "";
+    if (normalized.length < 2 || normalized.length > 12) {
+      throw new Error("Callsign must be between 2 and 12 characters.");
+    }
+    if (!/^[A-Za-z0-9 _-]+$/.test(normalized)) {
+      throw new Error("Callsign may only use letters, numbers, spaces, underscores, or hyphens.");
+    }
+    if (normalized.toUpperCase().startsWith("ANON-")) {
+      throw new Error("Callsign cannot start with ANON-.");
+    }
+    return normalized;
   }
 
   function syncPeriodButtons() {
-    const label = leaderboardPeriod.toUpperCase();
-    ui.periodBtn.textContent = label;
-    ui.previewPeriodBtn.textContent = label;
-    ui.overlayPeriodState.textContent = label;
+    ui.periodBtn.textContent = leaderboardPeriod.toUpperCase();
+  }
+
+  function setStartNameState(text, isError = false) {
+    ui.startNameState.textContent = text;
+    ui.startNameState.classList.toggle("error", isError);
+  }
+
+  function refreshStartNameState() {
+    const anonName = anonymousPlayerName();
+    const rawValue = ui.startNameInput.value.trim();
+
+    if (!rawValue) {
+      setStartNameState(`Leave it blank to start as ${anonName}. You can add a name after game over.`);
+      return;
+    }
+
+    try {
+      const normalized = normalizePlayerNameInput(ui.startNameInput.value);
+      setStartNameState(`This run will start as ${normalized}.`, false);
+    } catch (error) {
+      setStartNameState(error.message, true);
+    }
   }
 
   function setPanelOpen(nextOpen) {
@@ -257,7 +273,7 @@
   function setOverlayLayout(layout) {
     const isResult = layout === "result";
     ui.menuActions.classList.toggle("hidden", isResult);
-    ui.introExtras.classList.toggle("hidden", isResult);
+    ui.startPanel.classList.toggle("hidden", isResult);
     ui.resultPanel.classList.toggle("hidden", !isResult);
   }
 
@@ -282,7 +298,6 @@
   function saveBest() {
     best = Math.max(best, score);
     localStorage.setItem(STORAGE_KEYS.best, String(best));
-    ui.overlayBestScore.textContent = best.toLocaleString();
     syncUI();
   }
 
@@ -347,15 +362,11 @@
     if (leaderboardResult.status === "fulfilled") {
       const leaderboardItems = leaderboardResult.value.items || [];
       renderLeaderboard(leaderboardItems);
-      renderOverlayLeaderboard(leaderboardItems);
       const boardState = `${leaderboardResult.value.mode} ${leaderboardResult.value.period}`.toUpperCase();
       setApiState(boardState);
-      setBoardState(`TOP 3 | ${boardState}`);
     } else {
       renderLeaderboard([]);
-      renderOverlayLeaderboard([]);
       setApiState("LEADERBOARD OFFLINE");
-      setBoardState("LEADERBOARD OFFLINE");
     }
 
     if (dailyResult.status === "fulfilled") {
@@ -385,29 +396,6 @@
             <strong>${Number(item.score).toLocaleString()}</strong>
             <span>${formatDateShort(item.createdAt)}</span>
           </div>
-        </li>
-      `;
-    }).join("");
-  }
-
-  function renderOverlayLeaderboard(items) {
-    const previewItems = items.slice(0, 3);
-
-    if (!previewItems.length) {
-      ui.overlayLeaderboardList.innerHTML = `<li class="placeholder">No ranked runs yet.</li>`;
-      return;
-    }
-
-    ui.overlayLeaderboardList.innerHTML = previewItems.map((item) => {
-      const name = escapeHtml(item.name || "PLAYER");
-      return `
-        <li class="leaderboard-preview-item">
-          <div class="preview-rank">#${item.rank}</div>
-          <div class="preview-main">
-            <div class="preview-name">${name}</div>
-            <div class="preview-sub">Stage ${item.stage} | ${item.tier}</div>
-          </div>
-          <div class="preview-score">${Number(item.score).toLocaleString()}</div>
         </li>
       `;
     }).join("");
@@ -636,6 +624,8 @@
     ui.overlayTitle.innerHTML = title;
     ui.overlaySubtitle.textContent = subtitle;
     ui.start.textContent = buttonText;
+    ui.startNameInput.placeholder = anonymousPlayerName();
+    refreshStartNameState();
     setOverlayLayout("menu");
     ui.overlay.classList.remove("hidden");
   }
@@ -648,39 +638,58 @@
     pendingRunResult = payload;
     savingResult = false;
 
-    const savedName = getPreferredPlayerName();
     const anonName = anonymousPlayerName();
+    const runPlayerName = payload.playerName || "";
+    const needsNameInput = !runPlayerName;
 
     ui.overlayTitle.innerHTML = "RUN<br />OVER";
     ui.overlaySubtitle.textContent = payload.subtitle;
     ui.resultScore.textContent = Number(payload.score).toLocaleString();
     ui.resultStage.textContent = String(payload.stage);
     ui.resultTier.textContent = payload.tier;
-    ui.resultAnonName.textContent = anonName;
-    ui.playerNameInput.value = savedName;
-    ui.playerNameInput.placeholder = anonName;
-    ui.rememberNameToggle.checked = Boolean(savedName);
+    ui.resultPlayerName.textContent = runPlayerName || anonName;
+    ui.resultPlayerNote.textContent = runPlayerName
+      ? `This run started as ${runPlayerName}. Save it to keep that name on the board.`
+      : `You started anonymously. Add a callsign now or leave it blank for ${anonName}.`;
+    ui.resultNameField.classList.toggle("hidden", !needsNameInput);
+    ui.resultNameInput.value = "";
+    ui.resultNameInput.placeholder = anonName;
     ui.saveScoreBtn.disabled = false;
     ui.resultRestartBtn.disabled = false;
-    setResultSaveState(`Leave it blank to save as ${anonName}. Callsign: 2-12 letters, numbers, spaces, _ or -.`);
+    setResultSaveState(
+      runPlayerName
+        ? `Ready to save as ${runPlayerName}.`
+        : `Leave it blank to save as ${anonName}. Callsign: 2-12 letters, numbers, spaces, _ or -.`
+    );
     setOverlayLayout("result");
     ui.overlay.classList.remove("hidden");
 
     window.setTimeout(() => {
-      ui.playerNameInput.focus();
-      ui.playerNameInput.select();
+      if (needsNameInput) {
+        ui.resultNameInput.focus();
+        ui.resultNameInput.select();
+        return;
+      }
+      ui.saveScoreBtn.focus();
     }, 24);
   }
 
   async function saveRunResult() {
     if (!pendingRunResult || savingResult) return;
 
+    let playerName = "";
+    try {
+      playerName = pendingRunResult.playerName || normalizePlayerNameInput(ui.resultNameInput.value);
+    } catch (error) {
+      setResultSaveState(error.message, true);
+      ui.resultNameInput.focus();
+      return;
+    }
+
     savingResult = true;
     ui.saveScoreBtn.disabled = true;
     ui.resultRestartBtn.disabled = true;
     setResultSaveState("Saving your run...");
-
-    const playerName = ui.playerNameInput.value.trim().replace(/\s+/g, " ");
 
     try {
       const response = await finalizeRunScore({
@@ -689,14 +698,11 @@
         playerName
       });
 
-      if (ui.rememberNameToggle.checked && playerName) {
-        setPreferredPlayerName(playerName);
-      } else if (!ui.rememberNameToggle.checked || !playerName) {
-        setPreferredPlayerName("");
-      }
-
       lastRankedSnapshot = null;
       pendingRunResult = null;
+      activePlayerName = "";
+      ui.startNameInput.value = playerName || "";
+      refreshStartNameState();
       setStatus(`RANK #${response.rank}`);
       refreshPanels().catch(() => {});
       setPanelOpen(true);
@@ -720,7 +726,6 @@
     setPanelOpen(true);
     refreshPanels().catch(() => {
       setApiState("LEADERBOARD OFFLINE");
-      setBoardState("LEADERBOARD OFFLINE");
     });
   }
 
@@ -729,7 +734,6 @@
     syncPeriodButtons();
     refreshPanels().catch(() => {
       setApiState("LEADERBOARD OFFLINE");
-      setBoardState("LEADERBOARD OFFLINE");
     });
   }
 
@@ -753,6 +757,7 @@
     lastRankedSnapshot = null;
     pendingRunResult = null;
     savingResult = false;
+    activePlayerName = "";
     stage = 1;
     score = 0;
     combo = 0;
@@ -765,10 +770,23 @@
 
   async function startGame() {
     if (mode === "loading" || mode === "submitting") return;
+
+    let chosenName = "";
+    try {
+      chosenName = normalizePlayerNameInput(ui.startNameInput.value);
+    } catch (error) {
+      setStartNameState(error.message, true);
+      ui.startNameInput.focus();
+      return;
+    }
+
+    ui.startNameInput.value = chosenName;
+    refreshStartNameState();
     initAudio();
     setPanelOpen(false);
     hideMenu();
     resetGameState();
+    activePlayerName = chosenName;
     await nextStage();
   }
 
@@ -1019,6 +1037,7 @@
           score: lastRankedSnapshot.score,
           stage: lastRankedSnapshot.stage,
           tier: lastRankedSnapshot.tier,
+          playerName: activePlayerName,
           subtitle: `You failed on stage ${stage}. Save your best cleared run to the rank board.`
         });
         openRankPanel();
@@ -1393,7 +1412,20 @@
     });
   });
 
-  ui.playerNameInput.addEventListener("keydown", (event) => {
+  ui.startNameInput.addEventListener("input", () => {
+    refreshStartNameState();
+  });
+
+  ui.startNameInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    startGame().catch((error) => {
+      mode = "menu";
+      showMenu("START<br />FAILED", error.message, "TRY AGAIN");
+    });
+  });
+
+  ui.resultNameInput.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
     saveRunResult().catch((error) => {
@@ -1417,7 +1449,7 @@
     setApiState("IDLE");
     showMenu(
       "LOCK<br />MEMORY",
-      "The frontend now calls the local API server for protected pattern sessions and ranked score validation.",
+      "Trace the remembered lock pattern. Enter a callsign now, or leave it blank and decide when the run ends.",
       "START GAME"
     );
   });
@@ -1443,10 +1475,6 @@
     cycleLeaderboardPeriod();
   });
 
-  ui.previewPeriodBtn.addEventListener("click", () => {
-    cycleLeaderboardPeriod();
-  });
-
   ui.themeBtn.addEventListener("click", () => {
     cycleTheme();
   });
@@ -1466,9 +1494,10 @@
   resize();
   syncUI();
   syncRankButtons();
+  ui.startNameInput.placeholder = anonymousPlayerName();
+  refreshStartNameState();
   refreshPanels().catch(() => {
     setApiState("API OFFLINE");
-    setBoardState("LEADERBOARD OFFLINE");
   });
   requestAnimationFrame(loop);
 })();
