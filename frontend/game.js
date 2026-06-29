@@ -18,7 +18,6 @@
     tier: document.getElementById("tier"),
     best: document.getElementById("best"),
     status: document.getElementById("status"),
-    rule: document.getElementById("rule"),
     countdown: document.getElementById("countdown"),
     overlay: document.getElementById("overlay"),
     overlayTitle: document.getElementById("overlayTitle"),
@@ -271,7 +270,6 @@
     ui.tier.textContent = tier.short;
     ui.tier.style.color = tier.color;
     ui.best.textContent = best;
-    ui.rule.textContent = `${playMode} | ${currentTier} | difficulty ${currentDifficulty}/100 | client ${clientId.slice(-6).toUpperCase()}`;
   }
 
   function saveBest() {

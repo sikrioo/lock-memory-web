@@ -289,18 +289,6 @@ body.theme-flamboyant .status {
   box-shadow: 0 0 30px rgba(255, 0, 200, 0.25);
 }
 
-.rule {
-  margin-top: 8px;
-  font-size: 11px;
-  color: rgba(201, 250, 255, 0.7);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-body.theme-simple .rule {
-  color: rgba(17, 17, 17, 0.6);
-}
-
 .countdown {
   margin-top: 10px;
   font-family: var(--font-display);
@@ -893,10 +881,6 @@ body.theme-simple .player-name-input {
     padding: 8px 11px;
     font-size: 10px;
     letter-spacing: 0.08em;
-  }
-
-  .rule {
-    font-size: 9px;
   }
 
   .panel-header h2 {
