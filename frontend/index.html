@@ -83,18 +83,16 @@
 
   <div class="overlay" id="overlay">
     <div class="menu">
-      <div class="eyebrow">Pattern Memory</div>
       <h1 id="overlayTitle">LOCK<br />MEMORY</h1>
       <p class="subtitle" id="overlaySubtitle">
-        Trace the remembered lock pattern.
-        Enter a callsign now, or leave it blank and decide when the run ends.
+        Draw the pattern.
       </p>
       <div class="start-panel" id="startPanel">
         <label class="name-field" for="startNameInput">
-          <span class="preview-label">Callsign · Optional</span>
+          <span class="preview-label">Callsign</span>
           <input id="startNameInput" class="player-name-input" type="text" maxlength="12" autocomplete="nickname" spellcheck="false" />
         </label>
-        <div class="start-note" id="startNameState">Leave it blank to start anonymously.</div>
+        <div class="start-note" id="startNameState">Blank = anonymous</div>
       </div>
       <div class="menu-actions" id="menuActions">
         <button class="primary" id="start" type="button">START GAME</button>
@@ -121,12 +119,12 @@
             <strong id="resultPlayerName">ANON-0000</strong>
           </div>
         </div>
-        <div class="result-player-note" id="resultPlayerNote">You can still add a callsign before saving.</div>
+        <div class="result-player-note" id="resultPlayerNote">Add a callsign before saving.</div>
         <label class="name-field hidden" id="resultNameField" for="resultNameInput">
           <span class="preview-label">Callsign</span>
           <input id="resultNameInput" class="player-name-input" type="text" maxlength="12" autocomplete="nickname" spellcheck="false" />
         </label>
-        <div class="result-save-state" id="resultSaveState">Leave it blank to save as your anonymous callsign.</div>
+        <div class="result-save-state" id="resultSaveState">Blank = anonymous</div>
         <div class="menu-actions result-actions">
           <button class="primary" id="saveScoreBtn" type="button">SAVE SCORE</button>
           <button class="secondary" id="resultRestartBtn" type="button">PLAY AGAIN</button>

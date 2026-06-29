@@ -244,13 +244,13 @@
     const rawValue = ui.startNameInput.value.trim();
 
     if (!rawValue) {
-      setStartNameState(`Leave it blank to start as ${anonName}. You can add a name after game over.`);
+      setStartNameState(`Blank = ${anonName}`);
       return;
     }
 
     try {
       const normalized = normalizePlayerNameInput(ui.startNameInput.value);
-      setStartNameState(`This run will start as ${normalized}.`, false);
+      setStartNameState(`Start as ${normalized}`, false);
     } catch (error) {
       setStartNameState(error.message, true);
     }
@@ -649,8 +649,8 @@
     ui.resultTier.textContent = payload.tier;
     ui.resultPlayerName.textContent = runPlayerName || anonName;
     ui.resultPlayerNote.textContent = runPlayerName
-      ? `This run started as ${runPlayerName}. Save it to keep that name on the board.`
-      : `You started anonymously. Add a callsign now or leave it blank for ${anonName}.`;
+      ? `Saving as ${runPlayerName}.`
+      : `Add a callsign or save as ${anonName}.`;
     ui.resultNameField.classList.toggle("hidden", !needsNameInput);
     ui.resultNameInput.value = "";
     ui.resultNameInput.placeholder = anonName;
@@ -658,8 +658,8 @@
     ui.resultRestartBtn.disabled = false;
     setResultSaveState(
       runPlayerName
-        ? `Ready to save as ${runPlayerName}.`
-        : `Leave it blank to save as ${anonName}. Callsign: 2-12 letters, numbers, spaces, _ or -.`
+        ? `Ready to save.`
+        : `Blank = ${anonName}`
     );
     setOverlayLayout("result");
     ui.overlay.classList.remove("hidden");
@@ -1449,7 +1449,7 @@
     setApiState("IDLE");
     showMenu(
       "LOCK<br />MEMORY",
-      "Trace the remembered lock pattern. Enter a callsign now, or leave it blank and decide when the run ends.",
+      "Draw the pattern.",
       "START GAME"
     );
   });
