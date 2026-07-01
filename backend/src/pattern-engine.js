@@ -6,6 +6,25 @@ export const COORD = {
   7: [0, 2], 8: [1, 2], 9: [2, 2]
 };
 
+export const TOTAL_STAGES = 30;
+export const CHECKPOINT_RULES = {
+  10: {
+    code: "REVERSE",
+    label: "REVERSE",
+    instruction: "Enter the pattern in reverse."
+  },
+  20: {
+    code: "ECHO",
+    label: "ECHO x2",
+    instruction: "Repeat the pattern twice."
+  },
+  30: {
+    code: "REVERSE_FORWARD",
+    label: "REVERSE -> FORWARD",
+    instruction: "Enter reverse first, then forward."
+  }
+};
+
 export const TIERS = [
   { name: "BRONZE", short: "BR", min: 1, max: 25, stageFrom: 1, color: "#b8875f" },
   { name: "SILVER", short: "SV", min: 26, max: 45, stageFrom: 6, color: "#b8c7d6" },
@@ -357,6 +376,19 @@ export function tierByName(name) {
   return TIERS.find((tier) => tier.name === name) || TIERS[0];
 }
 
+export function checkpointRuleForStage(stage) {
+  const rule = CHECKPOINT_RULES[stage];
+  return rule ? { ...rule } : null;
+}
+
+export function isCheckpointStage(stage) {
+  return Boolean(CHECKPOINT_RULES[stage]);
+}
+
+export function effectivePatternStage(stage) {
+  return isCheckpointStage(stage) ? Math.max(1, stage - 1) : stage;
+}
+
 export function tierProgress(tier, stage) {
   const tierIndex = TIERS.indexOf(tier);
   const nextTier = TIERS[tierIndex + 1];
@@ -525,17 +557,47 @@ export function minimumElapsedMs(pattern, difficulty) {
   return Math.max(450, (pattern.length * 90) + (difficulty * 3));
 }
 
+export function expectedSegmentsForPattern(pattern, stage) {
+  const basePattern = pattern.slice();
+  const rule = checkpointRuleForStage(stage);
+
+  if (!rule) {
+    return [basePattern];
+  }
+
+  if (rule.code === "REVERSE") {
+    return [basePattern.slice().reverse()];
+  }
+
+  if (rule.code === "ECHO") {
+    return [basePattern.slice(), basePattern.slice()];
+  }
+
+  if (rule.code === "REVERSE_FORWARD") {
+    return [basePattern.slice().reverse(), basePattern.slice()];
+  }
+
+  return [basePattern];
+}
+
+export function expectedInputPatternForStage(pattern, stage) {
+  return expectedSegmentsForPattern(pattern, stage).flat();
+}
+
 export function buildStageSession({ stage, mode, recentPatterns = [], rng = createRng() }) {
-  const tier = tierForStage(stage);
-  const generated = generateTierPattern(tier, recentPatterns, rng, stage);
+  const patternStage = effectivePatternStage(stage);
+  const tier = tierForStage(patternStage);
+  const generated = generateTierPattern(tier, recentPatterns, rng, patternStage);
+  const expectedInputPattern = expectedInputPatternForStage(generated.pattern, stage);
 
   return {
     stage,
     tier: tier.name,
+    checkpointRule: checkpointRuleForStage(stage),
     difficulty: generated.difficulty,
     pattern: generated.pattern,
-    displayTimeMs: computeDisplayTimeMs(stage),
-    inputLimitSec: computeInputLimitSec(stage, generated.pattern.length, mode)
+    displayTimeMs: computeDisplayTimeMs(patternStage),
+    inputLimitSec: computeInputLimitSec(patternStage, expectedInputPattern.length, mode)
   };
 }
 

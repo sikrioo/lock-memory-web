@@ -7,7 +7,9 @@ import {
   buildRecentPatternState,
   buildStageSession,
   computeAwardedScore,
-  minimumElapsedMs
+  expectedInputPatternForStage,
+  minimumElapsedMs,
+  TOTAL_STAGES
 } from "./pattern-engine.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +47,7 @@ app.get("/api/health", (req, res) => {
 
 app.post("/api/pattern", route((req, res) => {
   const body = req.body || {};
-  const stage = toPositiveInteger(body.stage, "stage");
+  const stage = normalizeStageNumber(body.stage);
   const mode = normalizeMode(body.mode);
   const clientId = normalizeClientId(body.clientId);
   const providedRunId = typeof body.runId === "string" && body.runId.trim() ? body.runId.trim() : null;
@@ -122,7 +124,9 @@ app.post("/api/pattern", route((req, res) => {
     sessionId,
     runId,
     stage,
+    totalStages: TOTAL_STAGES,
     tier: session.tier,
+    checkpointRule: session.checkpointRule,
     difficulty: session.difficulty,
     pattern: session.pattern,
     displayTimeMs: session.displayTimeMs,
@@ -136,7 +140,7 @@ app.post("/api/score/submit", route((req, res) => {
   const sessionId = requireText(body.sessionId, "sessionId");
   const runId = typeof body.runId === "string" ? body.runId.trim() : "";
   const clientId = normalizeClientId(body.clientId);
-  const stage = toPositiveInteger(body.stage, "stage");
+  const stage = normalizeStageNumber(body.stage);
   const expectedScore = toNonNegativeInteger(body.score, "score");
   const expectedCombo = toPositiveInteger(body.combo, "combo");
   const success = body.success === true;
@@ -179,11 +183,12 @@ app.post("/api/score/submit", route((req, res) => {
   }
 
   const storedPattern = normalizePattern(JSON.parse(session.pattern_json));
-  if (!patternsEqual(storedPattern, inputPattern)) {
-    throw httpError(422, "Submitted inputPattern does not match the generated pattern.");
+  const expectedInputPattern = expectedInputPatternForStage(storedPattern, Number(session.stage));
+  if (!patternsEqual(expectedInputPattern, inputPattern)) {
+    throw httpError(422, "Submitted inputPattern does not match the expected checkpoint rule.");
   }
 
-  const minimumMs = minimumElapsedMs(storedPattern, Number(session.difficulty));
+  const minimumMs = minimumElapsedMs(expectedInputPattern, Number(session.difficulty));
   if (elapsedMs < minimumMs) {
     throw httpError(422, `elapsedMs is too short for validation. Minimum accepted: ${minimumMs}.`);
   }
@@ -448,6 +453,14 @@ function normalizeClientId(value) {
     throw httpError(400, "clientId is too long");
   }
   return clientId;
+}
+
+function normalizeStageNumber(value) {
+  const stage = toPositiveInteger(value, "stage");
+  if (stage > TOTAL_STAGES) {
+    throw httpError(400, `stage must be between 1 and ${TOTAL_STAGES}`);
+  }
+  return stage;
 }
 
 function normalizePattern(value) {

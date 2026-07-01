@@ -8,6 +8,7 @@
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
+  const TOTAL_STAGES = 30;
 
   const ui = {
     stage: document.getElementById("stage"),
@@ -18,6 +19,10 @@
     tier: document.getElementById("tier"),
     best: document.getElementById("best"),
     status: document.getElementById("status"),
+    checkpointBanner: document.getElementById("checkpointBanner"),
+    checkpointKicker: document.getElementById("checkpointKicker"),
+    checkpointTitle: document.getElementById("checkpointTitle"),
+    checkpointCopy: document.getElementById("checkpointCopy"),
     countdown: document.getElementById("countdown"),
     overlay: document.getElementById("overlay"),
     overlayTitle: document.getElementById("overlayTitle"),
@@ -84,6 +89,9 @@
   let inputTrail = [];
   let playerPattern = [];
   let currentPattern = [];
+  let currentExpectedPattern = [];
+  let currentInputSegments = [];
+  let currentCheckpointRule = null;
   let currentTier = "BRONZE";
   let currentDifficulty = 0;
   let currentDisplayTimeMs = 330;
@@ -234,6 +242,99 @@
     ui.startNameInput.setCustomValidity("");
   }
 
+  function formatStageLabel(stageValue) {
+    return `${stageValue}/${TOTAL_STAGES}`;
+  }
+
+  function buildInputSegments(pattern, checkpointRule) {
+    const basePattern = pattern.slice();
+
+    if (!checkpointRule) {
+      return [basePattern];
+    }
+
+    if (checkpointRule.code === "REVERSE") {
+      return [basePattern.slice().reverse()];
+    }
+
+    if (checkpointRule.code === "ECHO") {
+      return [basePattern.slice(), basePattern.slice()];
+    }
+
+    if (checkpointRule.code === "REVERSE_FORWARD") {
+      return [basePattern.slice().reverse(), basePattern.slice()];
+    }
+
+    return [basePattern];
+  }
+
+  function currentSegmentIndexForCount(count) {
+    let total = 0;
+
+    for (let index = 0; index < currentInputSegments.length; index += 1) {
+      total += currentInputSegments[index].length;
+      if (count < total) {
+        return index;
+      }
+    }
+
+    return Math.max(0, currentInputSegments.length - 1);
+  }
+
+  function nextSegmentBoundaryAfterCount(count) {
+    let total = 0;
+
+    for (const segment of currentInputSegments) {
+      total += segment.length;
+      if (count === total && count < currentExpectedPattern.length) {
+        return total;
+      }
+    }
+
+    return null;
+  }
+
+  function inputPromptLabel() {
+    if (!currentCheckpointRule) {
+      return "INPUT";
+    }
+
+    const segmentIndex = currentSegmentIndexForCount(playerPattern.length);
+
+    if (currentCheckpointRule.code === "REVERSE") {
+      return "REVERSE";
+    }
+
+    if (currentCheckpointRule.code === "ECHO") {
+      return `ECHO ${segmentIndex + 1}/2`;
+    }
+
+    if (currentCheckpointRule.code === "REVERSE_FORWARD") {
+      return segmentIndex === 0 ? "REVERSE" : "FORWARD";
+    }
+
+    return "INPUT";
+  }
+
+  function hideCheckpointBanner() {
+    ui.checkpointBanner.classList.add("hidden");
+  }
+
+  async function showCheckpointNotice(token) {
+    if (!currentCheckpointRule) return;
+
+    ui.checkpointKicker.textContent = `CHECKPOINT ${formatStageLabel(stage)}`;
+    ui.checkpointTitle.textContent = currentCheckpointRule.label;
+    ui.checkpointCopy.textContent = currentCheckpointRule.instruction;
+    ui.checkpointBanner.classList.remove("hidden");
+    setStatus(`CHECKPOINT ${formatStageLabel(stage)}`);
+    tone(520, 0.12, "triangle", 0.05);
+    await wait(1550);
+    if (token !== roundToken) return;
+    hideCheckpointBanner();
+    await wait(180);
+  }
+
   function setPanelOpen(nextOpen) {
     panelOpen = nextOpen;
     document.body.classList.toggle("panel-open", panelOpen);
@@ -262,7 +363,7 @@
 
   function syncUI() {
     const tier = tierMeta(currentTier);
-    ui.stage.textContent = stage;
+    ui.stage.textContent = formatStageLabel(stage);
     ui.score.textContent = score;
     ui.combo.textContent = combo;
     ui.dots.textContent = currentPattern.length || 4;
@@ -570,6 +671,7 @@
   function showMenu(title, subtitle, buttonText) {
     pendingRunResult = null;
     savingResult = false;
+    hideCheckpointBanner();
     ui.overlayTitle.innerHTML = title;
     ui.overlaySubtitle.textContent = subtitle;
     ui.start.textContent = buttonText;
@@ -586,15 +688,16 @@
   function showResultMenu(payload) {
     pendingRunResult = payload;
     savingResult = false;
+    hideCheckpointBanner();
 
     const anonName = anonymousPlayerName();
     const runPlayerName = payload.playerName || "";
     const needsNameInput = !runPlayerName;
 
-    ui.overlayTitle.innerHTML = "RUN<br />OVER";
+    ui.overlayTitle.innerHTML = payload.titleHtml || "RUN<br />OVER";
     ui.overlaySubtitle.textContent = payload.subtitle;
     ui.resultScore.textContent = Number(payload.score).toLocaleString();
-    ui.resultStage.textContent = String(payload.stage);
+    ui.resultStage.textContent = formatStageLabel(payload.stage);
     ui.resultTier.textContent = payload.tier;
     ui.resultPlayerName.textContent = runPlayerName || anonName;
     ui.resultPlayerNote.textContent = runPlayerName
@@ -695,8 +798,12 @@
     statusTimerLast = null;
     currentSessionId = "";
     currentPattern = [];
+    currentExpectedPattern = [];
+    currentInputSegments = [];
+    currentCheckpointRule = null;
     currentDifficulty = 0;
     currentInputLimitSec = playMode === "ZEN" ? 0 : 7.2;
+    hideCheckpointBanner();
     syncUI();
   }
 
@@ -758,12 +865,19 @@
       currentSessionId = session.sessionId;
       currentRunId = session.runId || currentRunId;
       currentPattern = session.pattern || [];
+      currentCheckpointRule = session.checkpointRule || null;
+      currentInputSegments = buildInputSegments(currentPattern, currentCheckpointRule);
+      currentExpectedPattern = currentInputSegments.flat();
       currentTier = session.tier || "BRONZE";
       currentDifficulty = Number(session.difficulty || 0);
       currentDisplayTimeMs = Number(session.displayTimeMs || 330);
       currentInputLimitSec = Number(session.inputLimitSec || 0);
 
       syncUI();
+      if (currentCheckpointRule) {
+        await showCheckpointNotice(token);
+        if (token !== roundToken) return;
+      }
       setStatus("WATCH CAREFULLY");
       setApiState(`SESSION ${currentSessionId.slice(0, 8).toUpperCase()}`);
       await playDemo(token);
@@ -802,7 +916,7 @@
     inputLimit = currentInputLimitSec;
     inputRemain = inputLimit;
     inputStartedAt = performance.now();
-    setStatus(playMode === "ZEN" ? "INPUT NOW" : `INPUT | ${inputRemain.toFixed(1)}S`);
+    setStatus(playMode === "ZEN" ? inputPromptLabel() : `${inputPromptLabel()} | ${inputRemain.toFixed(1)}S`);
   }
 
   async function countdown(token) {
@@ -817,11 +931,22 @@
     }
   }
 
+  function handleSegmentAdvance() {
+    const nextBoundary = nextSegmentBoundaryAfterCount(playerPattern.length);
+    if (nextBoundary === null) return;
+
+    pointerDown = false;
+    activePointerId = null;
+    inputTrail = [];
+    setStatus(`${inputPromptLabel()} | CONTINUE`);
+    tone(620, 0.08, "triangle", 0.04);
+  }
+
   function pushPlayerNode(id, auto = false) {
     if (mode !== "input") return;
-    if (playerPattern.includes(id)) return;
+    if (inputTrail.includes(id)) return;
 
-    const expected = currentPattern[playerPattern.length];
+    const expected = currentExpectedPattern[playerPattern.length];
     const node = getNode(id);
 
     playerPattern.push(id);
@@ -836,22 +961,25 @@
       return;
     }
 
-    if (playerPattern.length === currentPattern.length) {
+    if (playerPattern.length === currentExpectedPattern.length) {
       success();
+      return;
     }
+
+    handleSegmentAdvance();
   }
 
   function registerNode(node) {
     if (mode !== "input") return;
-    if (playerPattern[playerPattern.length - 1] === node.id) return;
-    if (playerPattern.includes(node.id)) return;
+    if (inputTrail[inputTrail.length - 1] === node.id) return;
+    if (inputTrail.includes(node.id)) return;
 
-    const last = playerPattern[playerPattern.length - 1];
+    const last = inputTrail[inputTrail.length - 1];
     if (last) {
       const blockers = blockerBetween(last, node.id);
       if (blockers) {
         for (const blocker of blockers) {
-          if (!playerPattern.includes(blocker)) {
+          if (!inputTrail.includes(blocker)) {
             pushPlayerNode(blocker, true);
             if (mode !== "input") return;
           }
@@ -926,10 +1054,38 @@
 
     setTimeout(() => {
       if (token !== roundToken) return;
+      if (stage >= TOTAL_STAGES) {
+        completeRun();
+        return;
+      }
       stage += 1;
       syncUI();
       nextStage();
     }, 950);
+  }
+
+  function completeRun() {
+    mode = "menu";
+
+    if (playMode === "DOUBT" && lastRankedSnapshot && Number(lastRankedSnapshot.score) > 0) {
+      showResultMenu({
+        titleHtml: "RUN<br />COMPLETE",
+        runId: lastRankedSnapshot.runId,
+        score: lastRankedSnapshot.score,
+        stage: lastRankedSnapshot.stage,
+        tier: lastRankedSnapshot.tier,
+        playerName: activePlayerName,
+        subtitle: `All ${TOTAL_STAGES} stages cleared. Save your run to the rank board.`
+      });
+      openRankPanel();
+      return;
+    }
+
+    showMenu(
+      "RUN<br />COMPLETE",
+      `All ${TOTAL_STAGES} stages cleared. Final score ${Number(score).toLocaleString()}.`,
+      "PLAY AGAIN"
+    );
   }
 
   function retrySameStage() {
@@ -1283,11 +1439,12 @@
       inputRemain -= dt;
       if (inputRemain <= 0) {
         inputRemain = 0;
-        const node = inputTrail.length ? getNode(inputTrail[inputTrail.length - 1]) : getNode(currentPattern[0]);
+        const fallbackNodeId = currentExpectedPattern[0] || currentPattern[0];
+        const node = inputTrail.length ? getNode(inputTrail[inputTrail.length - 1]) : getNode(fallbackNodeId);
         if (node) fail(node);
       } else {
         const rounded = Math.ceil(inputRemain * 10);
-        setStatusThrottled(`INPUT | ${inputRemain.toFixed(1)}S`, rounded);
+        setStatusThrottled(`${inputPromptLabel()} | ${inputRemain.toFixed(1)}S`, rounded);
       }
     }
 
